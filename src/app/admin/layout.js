@@ -1,4 +1,5 @@
 import { Home, FileText, Users, Layers3 } from "lucide-react";
+import { Toaster } from "@/components/ui/toaster";
 
 const AdminLayout = ({ children }) => {
   return (
@@ -45,9 +46,10 @@ const AdminLayout = ({ children }) => {
       </div>
 
       {/* Main Content */}
-      <div className="flex flex-col flex-1">
+      <div className="flex flex-col flex-1 overflow-scroll">
         {/* Main Content Area */}
         <div className="p-4">{children}</div>
+        <Toaster />
       </div>
     </div>
   );
