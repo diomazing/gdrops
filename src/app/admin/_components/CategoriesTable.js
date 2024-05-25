@@ -35,6 +35,7 @@ import { useState } from "react";
 import DataTablePagination from "./reusable/DataTablePagination";
 import DataTableColumnHeader from "./reusable/DataTableColumnHeader";
 import DataTableViewOptions from "./reusable/DataTableViewOptions";
+import Link from "next/link";
 
 export const columns = [
   {
@@ -78,7 +79,7 @@ export const columns = [
   {
     id: "actions",
     cell: ({ row }) => {
-      const payment = row.original;
+      const data = row.original;
 
       return (
         <DropdownMenu>
@@ -91,11 +92,15 @@ export const columns = [
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(payment.id)}>
+              onClick={() => navigator.clipboard.writeText(data.id)}>
               Copy payment ID
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>View customer</DropdownMenuItem>
+            <DropdownMenuItem className="hover: cursor-pointer">
+              <Link href={`/admin/categories/${data.id}/edit`}>
+                Edit Category
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuItem>View payment details</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -7,47 +7,54 @@ import {
   FormField,
   FormItem,
   FormLabel,
-  FormMessage,
 } from "@/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { UserSchema } from "@/validation/adminSchema";
 import { toast } from "@/components/ui/use-toast";
 import { useForm } from "react-hook-form";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { Calendar as CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
-import { cn, capitalizeFirstLetter } from "@/lib/utils";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Gender } from "@prisma/client";
+import { Check } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Country, State, City } from "country-state-city";
-import { useEffect, useState } from "react";
+import { createContext, useEffect, useState, useTransition } from "react";
+import { addUser, updateUser } from "../../_actions/user";
+import { useParams, useRouter } from "next/navigation";
+import Address from "./forms/Address";
+import Personal from "./forms/PersonalInformation";
+import SubmitButton from "./forms/SubmitButton";
+
+export const AddressContext = createContext(null);
+export const PersonalInformationContext = createContext(null);
+
 const UsersForm = ({ data }) => {
-  const [selectedCountry, setSelectedCountry] = useState(data.country || "");
-  const [selectedState, setSelectedState] = useState(data.state || "");
-  const [selectedCity, setSelectedCity] = useState(data.city || "");
+  // we are getting the dynamic id params to be passed to the server actions
+  const { id } = useParams();
+
+  //using the latest next/navigation route so we can redirect/push to another page
+  const router = useRouter();
+
+  //we are using the built-in useTransition from react to get to use loading state
+  const [isPending, startTranstion] = useTransition();
+
+  //we create a local state to check whether we are in create/edit user
+  const [mode, setMode] = useState(data?.email ? "update" : "create");
+
+  //states to manage selected country, state and city for further processing
+  const [selectedCountry, setSelectedCountry] = useState(data?.country || "");
+  const [selectedState, setSelectedState] = useState(data?.state || "");
+  const [selectedCity, setSelectedCity] = useState(data?.city || "");
+
+  //we store local values for city and states to not overload the select options that might cause the UI to slow down and unresponsive
+  //used to store specific data regarding states of a specific country
   const [states, setStates] = useState([]);
+
+  //used to store specific data regarding cities of a specific state
   const [cities, setCities] = useState([]);
 
   const getStates = (country) => {
@@ -78,305 +85,150 @@ const UsersForm = ({ data }) => {
   };
 
   useEffect(() => {
-    if (data.country) {
-      setStates(getStates(data.country));
-      setCities(getCities(data.country, data.state));
+    if (data?.country) {
+      setStates(getStates(data?.country));
+      setCities(getCities(data?.country, data?.state));
     }
   }, [data]);
 
   const form = useForm({
     resolver: zodResolver(UserSchema),
     defaultValues: {
-      email: data.email || "",
-      firstName: data.firstName || "",
-      lastName: data.lastName || "",
-      birthdate: data.birthdate || "",
-      gender: data.gender || "",
-      country: data.country || "",
-      state: data.state || "",
-      city: data.city || "",
-      address1: data.address1 || "",
-      hasAdminAccess: data.hasAdminAccess || "",
+      email: data?.email || "",
+      firstName: data?.firstName || "",
+      lastName: data?.lastName || "",
+      birthdate: data?.birthdate || "",
+      gender: data?.gender || "",
+      country: data?.country || "",
+      state: data?.state || "",
+      city: data?.city || "",
+      address1: data?.address1 || "",
+      hasAdminAccess: data?.hasAdminAccess || false,
     },
   });
 
-  const onSubmit = (form) => {
+  const onSubmitCreate = async (form) => {
+    const data = {
+      ...form,
+      id,
+      country: selectedCountry,
+      state: selectedState,
+    };
+
+    try {
+      startTranstion(async () => {
+        const result = await addUser(data);
+
+        if (result) {
+          toast({
+            description: (
+              <div className="flex items-center">
+                <Check className="h-5 w-5 text-green-500" />
+                <span className="ml-2 ">User added successfully</span>
+              </div>
+            ),
+          });
+
+          router.push("/admin/users");
+        }
+      });
+    } catch (error) {
+      const { response } = error;
+      const { data, status } = response || {};
+
+      if (status === 400 || status === 409) {
+        const { message } = data || { message: "Something went wrong" };
+
+        toast({
+          title: "Error occurred",
+          variant: "destructive",
+          status: "error",
+          description: message,
+        });
+      } else {
+        console.log("err", error);
+      }
+    }
+  };
+  const onSubmitEdit = async (form) => {
     // we destructure the country since we are getting the actual changed value from the local state already and we
     //don't want to preserve the old value which this form have and then we pass the selectedCountry afterwards
     const { country, state } = form;
     const data = {
       ...form,
+      id,
       country: selectedCountry,
       state: selectedState,
     };
 
-    toast({
-      title: "You submitted the following values:",
-      description: (
-        <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-          <code className="text-white">{JSON.stringify(data, null, 2)}</code>
-        </pre>
-      ),
-    });
+    try {
+      startTranstion(async () => {
+        const result = await updateUser(data);
+
+        if (result) {
+          toast({
+            description: (
+              <div className="flex items-center">
+                <Check className="h-5 w-5 text-green-500" />
+                <span className="ml-2 ">User updated successfully</span>
+              </div>
+            ),
+          });
+
+          router.push("/admin/users");
+        }
+      });
+    } catch (error) {
+      const { response } = error;
+      const { data, status } = response || {};
+
+      if (status === 400 || status === 409) {
+        const { message } = data || { message: "Something went wrong" };
+
+        toast({
+          title: "Error occurred",
+          variant: "destructive",
+          status: "error",
+          description: message,
+        });
+      } else {
+        console.log("err", error);
+      }
+    }
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Edit User</CardTitle>
+        <CardTitle>
+          {data !== undefined ? "Edit User" : "Create User"}
+        </CardTitle>
       </CardHeader>
       <hr className="mx-5 border-t border-slate-400 py-2" />
       <CardContent>
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit(onSubmit)}
+            onSubmit={
+              mode === "create"
+                ? form.handleSubmit(onSubmitCreate)
+                : form.handleSubmit(onSubmitEdit)
+            }
             className="w-2/3 space-y-6">
-            <CardTitle className="text-xl">Personal Information</CardTitle>
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <>
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input placeholder="email" {...field} disabled={true} />
-                    </FormControl>
-                    <FormDescription>
-                      This is the users unique account identifier.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                </>
-              )}
-            />
-            <div className="w-full flex flex-row gap-5 ">
-              <FormField
-                control={form.control}
-                name="firstName"
-                render={({ field }) => (
-                  <>
-                    <FormItem className="w-1/2">
-                      <FormLabel>First Name</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="First name"
-                          {...field}
-                          className="w-full"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  </>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="lastName"
-                render={({ field }) => (
-                  <>
-                    <FormItem className="w-1/2">
-                      <FormLabel>Last Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Last name" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  </>
-                )}
-              />
-            </div>
-
-            <div className="w-full flex flex-row gap-5">
-              <FormField
-                control={form.control}
-                name="birthdate"
-                render={({ field }) => (
-                  <>
-                    <FormItem className="w-1/2 flex flex-col">
-                      <FormLabel>Date of Birth</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={cn(
-                                "w-[240px] pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}>
-                              {field.value ? (
-                                format(field.value, "PPP")
-                              ) : (
-                                <span>Pick a date</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            disabled={(date) =>
-                              date > new Date() || date < new Date("1900-01-01")
-                            }
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  </>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="gender"
-                render={({ field }) => (
-                  <>
-                    <FormItem className="w-1/2 flex flex-col">
-                      <FormLabel>Gender</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a gender" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {Object.entries(Gender).map(([key, value]) => (
-                            <SelectItem key={key} value={value}>
-                              {capitalizeFirstLetter(key)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  </>
-                )}
-              />
-            </div>
+            <PersonalInformationContext.Provider value={{ form, mode }}>
+              <Personal />
+            </PersonalInformationContext.Provider>
             <hr className="border-t border-slate-400 my-auto" />
-            <CardTitle className="text-xl">Address Information</CardTitle>
-
-            <div className="w-full flex flex-row gap-5">
-              <FormField
-                control={form.control}
-                name="country"
-                render={({ field }) => (
-                  <>
-                    <FormItem className="w-1/2 flex flex-col">
-                      <FormLabel>Country</FormLabel>
-                      <Select
-                        onValueChange={(country) =>
-                          handleChangeCountry(country)
-                        }
-                        defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a country" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {Country.getAllCountries().map((country) => (
-                            <SelectItem
-                              key={country.name}
-                              value={country.isoCode}>
-                              {country.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  </>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="state"
-                render={({ field }) => (
-                  <>
-                    <FormItem className="w-1/2 flex flex-col">
-                      <FormLabel>State</FormLabel>
-                      <Select
-                        onValueChange={(state) => handleChangeState(state)}
-                        defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a state" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {states.map((state) => (
-                            <SelectItem key={state.name} value={state.isoCode}>
-                              {state.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  </>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="city"
-                render={({ field }) => (
-                  <>
-                    <FormItem className="w-1/2 flex flex-col">
-                      <FormLabel>City</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a city" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {cities !== undefined &&
-                          cities !== null &&
-                          cities.length > 0 ? (
-                            cities.map((city) => (
-                              <SelectItem key={city.name} value={city.name}>
-                                {city.name}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value={null}>
-                              No Cities Found.
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  </>
-                )}
-              />
-            </div>
-            <div className="w-full flex flex-col">
-              <FormField
-                control={form.control}
-                name="address1"
-                render={({ field }) => (
-                  <>
-                    <FormItem>
-                      <FormLabel>Address Line 1</FormLabel>
-                      <FormControl>
-                        <Input placeholder="address1" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  </>
-                )}
-              />
-            </div>
+            <AddressContext.Provider
+              value={{
+                form,
+                handleChangeCountry,
+                handleChangeState,
+                Country,
+                states,
+                cities,
+              }}>
+              <Address />
+            </AddressContext.Provider>
             <CardTitle className="text-xl">Security Settings</CardTitle>
 
             <div className="w-full flex flex-col">
@@ -402,7 +254,8 @@ const UsersForm = ({ data }) => {
                 )}
               />
             </div>
-            <Button type="submit">Submit</Button>
+
+            <SubmitButton isPending={isPending} />
           </form>
         </Form>
       </CardContent>

@@ -93,7 +93,6 @@ export const columns = [
     cell: ({ row }) => {
       const data = row.original;
 
-      console.log("DATA", data);
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -150,14 +149,9 @@ const UsersTable = ({ data }) => {
       <div className="flex items-center py-4">
         <Input
           placeholder="Filter emails or first names..."
-          value={
-            (table.getColumn("email")?.getFilterValue() ||
-              table.getColumn("firstName")?.getFilterValue()) ??
-            ""
-          }
+          value={table.getColumn("email")?.getFilterValue() ?? ""}
           onChange={(event) =>
-            table.getColumn("email")?.setFilterValue(event.target.value) ||
-            table.getColumn("firstName")?.setFilterValue(event.target.value)
+            table.getColumn("email")?.setFilterValue(event.target.value)
           }
           className="max-w-sm"
         />

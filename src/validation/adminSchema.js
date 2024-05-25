@@ -2,6 +2,16 @@ import { Gender } from "@prisma/client";
 import { z } from "zod";
 
 export const UserSchema = z.object({
+  email: z
+    .string({
+      required_error: "Email is required",
+      invalid_type_error: "Email must be a string",
+      refine: (email) => {
+        const re = /^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/i;
+        return re.test(email) || "Email is not valid.";
+      },
+    })
+    .email(),
   firstName: z
     .string({
       required_error: "First Name is required",
@@ -27,7 +37,10 @@ export const UserSchema = z.object({
       message: "Birthdate must be in the past.",
     }),
   gender: z
-    .nativeEnum(Gender)
+    .string({
+      required_error: "Gender is required",
+      invalid_type_error: "Gender must be a string",
+    })
     .refine((gender) => Object.values(Gender).includes(gender), {
       message: "Gender must be one of the following: male, female, other",
     }),
@@ -52,4 +65,15 @@ export const UserSchema = z.object({
       message: "Max characters reached.",
     }),
   hasAdminAccess: z.boolean().optional(),
+});
+
+export const CategoriesSchema = z.object({
+  categoryName: z
+    .string({
+      required_error: "Category Name is required",
+      invalid_type_error: "Category Name must be a string",
+    })
+    .min(3, {
+      message: "Category Name must be at least 3 characters.",
+    }),
 });

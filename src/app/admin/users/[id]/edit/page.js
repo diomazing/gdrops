@@ -4,14 +4,13 @@ const {
 import prisma from "@/lib/prisma";
 import { notFound } from "next/navigation";
 
-const UsersPage = async ({ params: { id } }) => {
+const EditUsersPage = async ({ params: { id } }) => {
   const user = await prisma.user.findUnique({
     where: { id },
   });
 
   if (user === null) return notFound();
 
-  console.log("USER", user);
   return (
     <>
       <UsersForm data={user} />
@@ -19,4 +18,4 @@ const UsersPage = async ({ params: { id } }) => {
   );
 };
 
-export default UsersPage;
+export default EditUsersPage;
